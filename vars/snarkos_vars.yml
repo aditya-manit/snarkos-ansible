@@ -1,0 +1,6 @@
+# vars/snarkos_vars.yml
+snarkos_user: snarkosadm
+snarkos_group: snarkosadm
+working_directory: /home/{{ snarkos_user }}
+validators: "ValidatorIPAddress1:5000,ValidatorIPAddress2:5000" # Update with actual validators
+# Additional variables can be added here

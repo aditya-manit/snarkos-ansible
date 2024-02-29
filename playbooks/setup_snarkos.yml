@@ -1,0 +1,95 @@
+---
+- name: Setup snarkOS as a systemd service
+  hosts: snarkos_hosts
+  become: yes
+  vars_files:
+    - ../vars/snarkos_vars.yml
+  tasks:
+    - name: Install required system packages
+      apt:
+        name:
+          - build-essential
+          - curl
+          - clang
+          - gcc
+          - libssl-dev
+          - llvm
+          - make
+          - pkg-config
+          - tmux
+          - xz-utils
+        state: present
+        update_cache: yes
+    - name: Ensure snarkosadm user exists
+      user:
+        name: "{{ snarkos_user }}"
+        group: "{{ snarkos_group }}"
+        create_home: yes
+
+    - name: Install Rust for snarkosadm
+      become_user: "{{ snarkos_user }}"
+      shell: |
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        source ${HOME}/.cargo/env
+      args:
+        creates: "{{ working_directory }}/.cargo/bin/cargo"
+        executable: /bin/bash
+      environment:
+        HOME: "{{ working_directory }}"
+
+    - name: Checkout snarkOS from git and build
+      become_user: "{{ snarkos_user }}"
+      block:
+        - name: Clone snarkOS repository
+          git:
+            repo: 'https://github.com/AleoHQ/snarkOS.git'
+            dest: "{{ working_directory }}/snarkOS"
+            version: main
+            update: yes
+        - name: Build snarkOS
+          command:
+            cmd: cargo build --release
+            chdir: "{{ working_directory }}/snarkOS"
+          environment:
+            PATH: "{{ working_directory }}/.cargo/bin:{{ ansible_env.PATH }}"
+        - name: Create bin directory and move snarkOS binary
+          file:
+            path: "{{ working_directory }}/bin"
+            state: directory
+          command: mv "{{ working_directory }}/snarkOS/target/release/snarkos" "{{ working_directory }}/bin/snarkos"
+          args:
+            removes: "{{ working_directory }}/bin/snarkos"
+
+    - name: Setup systemd service for snarkOS
+      blockinfile:
+        path: /lib/systemd/system/validator.service
+        block: |
+          [Unit]
+          Description=SnarkOS Validator
+          After=NetworkManager.service
+          Wants=network-online.target
+          StartLimitIntervalSec=500
+          StartLimitBurst=5
+
+          [Service]
+          Type=simple
+          User={{ snarkos_user }}
+          Group={{ snarkos_group }}
+          LimitMEMLOCK=infinity
+          LimitNOFILE=65535
+          WorkingDirectory={{ working_directory }}
+          ExecStart={{ working_directory }}/bin/snarkos start --nodisplay --logfile /dev/null --verbosity 4 --validators "{{ validators }}" --validator --private-key-file {{ working_directory }}/validator.key
+          ExecStop=/bin/kill -s INT $MAINPID
+          RestartSec=5s
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+        create: yes
+
+    - name: Enable and start snarkOS service
+      systemd:
+        name: validator
+        daemon_reload: yes
+        enabled: yes
+        state: started
