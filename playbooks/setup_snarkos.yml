@@ -1,3 +1,4 @@
+
 ---
 - name: Setup snarkOS as a systemd service
   hosts: snarkos_hosts

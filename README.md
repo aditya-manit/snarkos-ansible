@@ -1,5 +1,6 @@
 # snarkOS Ansible Deployment
 
+
 This repository contains Ansible scripts for deploying snarkOS Aleo node as a systemd service on Ubuntu servers. It automates the process of installing required dependencies, setting up the Rust environment, building snarkOS from source, and configuring it to run as a validator node service.
 
 ## Prerequisites

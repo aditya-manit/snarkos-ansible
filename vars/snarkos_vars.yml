@@ -1,4 +1,3 @@
-# vars/snarkos_vars.yml
 snarkos_user: snarkosadm
 snarkos_group: snarkosadm
 working_directory: /home/{{ snarkos_user }}
